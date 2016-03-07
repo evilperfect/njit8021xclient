@@ -1,16 +1,36 @@
 /* File: main.c
  * ------------
- * 校园网802.1X客户端命令行
+ * 802.1X客户端命令行
+ * 客户端成必须使用方式：
+ * 1.直接从命令行调用.
+ * 2.在OpenWrt环境下，通过luci的脚本加载执行，如项目https://github.com/ferstar/luci-njit中使用方法。
  */
 
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <unistd.h>
+#include <termios.h>
+#include <signal.h>
+#include <errno.h>
+
+struct sigaction act;
+char *DeviceName; 
 
 /* 子函数声明 */
 int Authentication(const char *UserName, const char *Password, const char *DeviceName);
+void SendLogoffPkt(const char *DeviceName);
 
+void exit_handler(int signo, siginfo_t * info, void * p)
+{
+    if(signo == SIGINT)
+    {
+        printf("\n接收到退出信号，准备退出。\n");
+        if(DeviceName != NULL)
+            SendLogoffPkt(DeviceName);
+        printf("bye bye!\n");
+        exit(0);
+    }
+}
 
 /**
  * 函数：main()
@@ -20,13 +40,17 @@ int Authentication(const char *UserName, const char *Password, const char *Devic
  * 	njit-client  username  password
  * 	njit-client  username  password  eth0
  * 	njit-client  username  password  eth1
- * 若没有从命令行指定网卡，则默认将使用eth0
+ *  若没有从命令行指定网卡，则默认将使用eth0
  */
 int main(int argc, char *argv[])
 {
+    //注册退出事件函数
+    sigemptyset(&act.sa_mask);
+    act.sa_sigaction = exit_handler;
+    act.sa_flags = SA_SIGINFO;
+
 	char *UserName;
 	char *Password;
-	char *DeviceName;
 
 	/* 检查当前是否具有root权限 */
 	if (getuid() != 0) {
@@ -58,4 +82,3 @@ int main(int argc, char *argv[])
 
 	return (0);
 }
-
